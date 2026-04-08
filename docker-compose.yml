@@ -1,0 +1,74 @@
+version: "3.9"
+
+services:
+  # ── PostgreSQL ─────────────────────────────────────
+  postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: pixel
+      POSTGRES_PASSWORD: pixel
+      POSTGRES_DB: pixel_battle
+    # НЕ пробрасываем порт наружу — доступен только внутри Docker-сети
+    expose:
+      - "5432"
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pixel -d pixel_battle"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # ── Redis ──────────────────────────────────────────
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    expose:
+      - "6379"
+    volumes:
+      - redis_data:/data
+    command: redis-server --appendonly yes
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  # ── Telegram-бот (aiogram) ─────────────────────────
+  bot:
+    build: .
+    restart: unless-stopped
+    command: python bot.py
+    environment:
+      BOT_TOKEN: ${BOT_TOKEN}
+      WEBAPP_BASE_URL: ${WEBAPP_BASE_URL}
+      REDIS_URL: redis://redis:6379/0
+      DATABASE_URL: postgresql+asyncpg://pixel:pixel@postgres:5432/pixel_battle
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+  # ── Backend API (FastAPI) ──────────────────────────
+  # Слушает на 127.0.0.1:8000 — Nginx проксирует сюда
+  backend:
+    build: .
+    restart: unless-stopped
+    command: uvicorn main:app --host 0.0.0.0 --port 8000 --workers 2
+    ports:
+      - "127.0.0.1:8000:8000"   # только localhost, снаружи через Nginx
+    environment:
+      BOT_TOKEN: ${BOT_TOKEN}
+      REDIS_URL: redis://redis:6379/0
+      DATABASE_URL: postgresql+asyncpg://pixel:pixel@postgres:5432/pixel_battle
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  redis_data:
+  pg_data:
