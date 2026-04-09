@@ -10,7 +10,7 @@ bot.py — Telegram-бот на aiogram 3.x.
   Кнопка «Открыть Карту» — WebApp с холстом
 
 Фоновые задачи:
-  • Через 5 мин после /start_battle — деление на команды и старт.
+  • Через 2 мин после /start_battle — деление на команды и старт.
   • Каждые 2 часа — отправка статистики в чат.
   • Через 24 часа — завершение и объявление победителя.
   • При старте бота — восстановление активных игр из БД.
@@ -22,25 +22,6 @@ import asyncio
 import logging
 import random
 from datetime import datetime, timedelta, timezone
-
-# Кеш прав администратора {(chat_id, user_id): (is_admin, timestamp)}
-_admin_cache: dict = {}
-ADMIN_CACHE_TTL = 60  # секунд
-
-async def is_admin(bot: Bot, chat_id: int, user_id: int) -> bool:
-    now = datetime.now(timezone.utc).timestamp()
-    key = (chat_id, user_id)
-    if key in _admin_cache:
-        result, ts = _admin_cache[key]
-        if now - ts < ADMIN_CACHE_TTL:
-            return result
-    try:
-        member = await bot.get_chat_member(chat_id, user_id)
-        result = member.status in ("administrator", "creator")
-    except Exception:
-        result = False
-    _admin_cache[key] = (result, now)
-    return result
 
 from aiogram import Bot, Dispatcher, F, Router, types
 from aiogram.filters import Command, CommandObject
@@ -71,6 +52,28 @@ logger = logging.getLogger(__name__)
 
 router = Router()
 
+# ════════════════════════════════════════════════════════
+# КЕШ ПРАВ АДМИНИСТРАТОРА
+# ════════════════════════════════════════════════════════
+_admin_cache: dict[tuple[int, int], tuple[bool, float]] = {}
+ADMIN_CACHE_TTL = 60  # секунд
+
+async def is_admin(bot: Bot, chat_id: int, user_id: int) -> bool:
+    """Проверяет права администратора с кешированием на 60 секунд."""
+    now = datetime.now(timezone.utc).timestamp()
+    key = (chat_id, user_id)
+    if key in _admin_cache:
+        result, ts = _admin_cache[key]
+        if now - ts < ADMIN_CACHE_TTL:
+            return result
+    try:
+        member = await bot.get_chat_member(chat_id, user_id)
+        result = member.status in ("administrator", "creator")
+    except Exception:
+        result = False
+    _admin_cache[key] = (result, now)
+    return result
+
 # Хранилище фоновых задач (чтобы их можно было отменить)
 _background_tasks: dict[int, list[asyncio.Task]] = {}
 
@@ -82,7 +85,7 @@ def _build_recruit_text(player_names: list[str]) -> str:
     """Формирует текст сообщения о сборе участников."""
     text = (
         "🎨 <b>Pixel Battle начинается!</b>\n\n"
-        f"Сбор участников: <b>{RECRUIT_TIME // 300} минуты</b>.\n"
+        f"Сбор участников: <b>{RECRUIT_TIME // 60} минуты</b>.\n"
         "Нажмите кнопку ниже, чтобы присоединиться.\n"
     )
 
@@ -238,15 +241,9 @@ async def cmd_swap_team(message: types.Message, bot: Bot, command: CommandObject
     caller_id = message.from_user.id
 
     # ── 1. Проверяем права вызывающего ─────────────────
-try:
-    member = await bot.get_chat_member(chat_id, caller_id)
-except Exception:
-    await message.reply("⚠️ Не удалось проверить ваши права.")
-    return
-
-if member.status not in ("administrator", "creator"):
-    await message.reply("🚫 Эта команда доступна только администраторам чата.")
-    return
+    if not await is_admin(bot, chat_id, caller_id):
+        await message.reply("🚫 Эта команда доступна только администраторам чата.")
+        return
 
     # ── 2. Определяем целевого пользователя ────────────
     target_user_id: int | None = None
@@ -495,15 +492,9 @@ async def cmd_stop_battle(message: types.Message, bot: Bot) -> None:
     caller_id = message.from_user.id
 
     # Проверяем права
-    try:
-    member = await bot.get_chat_member(chat_id, caller_id)
-except Exception:
-    await message.reply("⚠️ Не удалось проверить ваши права.")
-    return
-
-if member.status not in ("administrator", "creator"):
-    await message.reply("🚫 Эта команда доступна только администраторам чата.")
-    return
+    if not await is_admin(bot, chat_id, caller_id):
+        await message.reply("🚫 Эта команда доступна только администраторам чата.")
+        return
 
     async with async_session() as session:
         game = (
