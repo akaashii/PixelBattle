@@ -20,10 +20,10 @@ DATABASE_URL: str = os.environ.get(
 )
 
 # ── Игровые константы ──────────────────────────────────
-CANVAS_WIDTH: int = 100        # пикселей
-CANVAS_HEIGHT: int = 100
-PIXEL_COOLDOWN: int = 60       # секунд
-RECRUIT_TIME: int = 120        # секунд (2 минуты сбор)
+CANVAS_WIDTH: int = 500        # пикселей
+CANVAS_HEIGHT: int = 500
+PIXEL_COOLDOWN: int = 30       # секунд
+RECRUIT_TIME: int = 300        # секунд (5 минут сбор)
 GAME_DURATION: int = 86_400    # секунд (24 часа)
 STATS_INTERVAL: int = 7_200    # секунд (каждые 2 часа)
 
