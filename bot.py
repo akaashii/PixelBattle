@@ -238,15 +238,15 @@ async def cmd_swap_team(message: types.Message, bot: Bot, command: CommandObject
     caller_id = message.from_user.id
 
     # ── 1. Проверяем права вызывающего ─────────────────
-    try:
-        member = await bot.get_chat_member(chat_id, caller_id)
-    except Exception:
-        await message.reply("⚠️ Не удалось проверить ваши права.")
-        return
+try:
+    member = await bot.get_chat_member(chat_id, caller_id)
+except Exception:
+    await message.reply("⚠️ Не удалось проверить ваши права.")
+    return
 
-    if member.status not in ("administrator", "creator"):
-        await message.reply("🚫 Эта команда доступна только администраторам чата.")
-        return
+if member.status not in ("administrator", "creator"):
+    await message.reply("🚫 Эта команда доступна только администраторам чата.")
+    return
 
     # ── 2. Определяем целевого пользователя ────────────
     target_user_id: int | None = None
@@ -496,14 +496,14 @@ async def cmd_stop_battle(message: types.Message, bot: Bot) -> None:
 
     # Проверяем права
     try:
-        member = await bot.get_chat_member(chat_id, caller_id)
-    except Exception:
-        await message.reply("⚠️ Не удалось проверить ваши права.")
-        return
+    member = await bot.get_chat_member(chat_id, caller_id)
+except Exception:
+    await message.reply("⚠️ Не удалось проверить ваши права.")
+    return
 
-    if member.status not in ("administrator", "creator"):
-        await message.reply("🚫 Эта команда доступна только администраторам чата.")
-        return
+if member.status not in ("administrator", "creator"):
+    await message.reply("🚫 Эта команда доступна только администраторам чата.")
+    return
 
     async with async_session() as session:
         game = (
