@@ -23,6 +23,25 @@ import logging
 import random
 from datetime import datetime, timedelta, timezone
 
+# Кеш прав администратора {(chat_id, user_id): (is_admin, timestamp)}
+_admin_cache: dict = {}
+ADMIN_CACHE_TTL = 60  # секунд
+
+async def is_admin(bot: Bot, chat_id: int, user_id: int) -> bool:
+    now = datetime.now(timezone.utc).timestamp()
+    key = (chat_id, user_id)
+    if key in _admin_cache:
+        result, ts = _admin_cache[key]
+        if now - ts < ADMIN_CACHE_TTL:
+            return result
+    try:
+        member = await bot.get_chat_member(chat_id, user_id)
+        result = member.status in ("administrator", "creator")
+    except Exception:
+        result = False
+    _admin_cache[key] = (result, now)
+    return result
+
 from aiogram import Bot, Dispatcher, F, Router, types
 from aiogram.filters import Command, CommandObject
 from aiogram.types import (
